@@ -1,64 +1,65 @@
 import gradio as gr
-from huggingface_hub import InferenceClient
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+import json
+import random
 
-"""
-For more information on `huggingface_hub` Inference API support, please check the docs: https://huggingface.co/docs/huggingface_hub/v0.22.2/en/guides/inference
-"""
-client = InferenceClient("HuggingFaceH4/zephyr-7b-beta")
+# Load a pre-trained conversational AI model
+model_name = "microsoft/DialoGPT-medium"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
+# Load or initialize conversation history
+try:
+    with open("history.json", "r") as f:
+        conversation_history = json.load(f)
+except FileNotFoundError:
+    conversation_history = {}
 
-def respond(
-    message,
-    history: list[tuple[str, str]],
-    system_message,
-    max_tokens,
-    temperature,
-    top_p,
-):
-    messages = [{"role": "system", "content": system_message}]
+def save_history():
+    with open("history.json", "w") as f:
+        json.dump(conversation_history, f)
 
-    for val in history:
-        if val[0]:
-            messages.append({"role": "user", "content": val[0]})
-        if val[1]:
-            messages.append({"role": "assistant", "content": val[1]})
+# Chat function
+def tate_bot(input_text, user_id):
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
 
-    messages.append({"role": "user", "content": message})
+    if user_id in conversation_history and len(conversation_history[user_id]) > 1:
+    response += "\n\nAlso, I remember you told me about this earlier. Stay focused and keep hustling."
 
-    response = ""
+    # Tokenize input and add to conversation history
+    new_user_input_ids = tokenizer.encode(input_text + tokenizer.eos_token, return_tensors="pt")
+    conversation_history[user_id].append(new_user_input_ids)
 
-    for message in client.chat_completion(
-        messages,
-        max_tokens=max_tokens,
-        stream=True,
-        temperature=temperature,
-        top_p=top_p,
-    ):
-        token = message.choices[0].delta.content
+    # Generate bot response
+    bot_input_ids = torch.cat(conversation_history[user_id], dim=-1)
+    response_ids = model.generate(bot_input_ids, max_length=1000, pad_token_id=tokenizer.eos_token_id)
+    response = tokenizer.decode(response_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
 
-        response += token
-        yield response
+    # Add motivational snippets
+    motivational_quotes = [
+        "STOP being weak. Take ACTION. Hustle harder or stay broke forever.",
+        "You want success? Take risks. Nothing great comes from staying comfortable.",
+        "ACTION fixes everything. The longer you wait, the longer you stay broke."
+    ]
+    response += f"\n\n{random.choice(motivational_quotes)}"
 
+    # Save history
+    save_history()
+    return response
 
-"""
-For information on how to customize the ChatInterface, peruse the gradio docs: https://www.gradio.app/docs/chatinterface
-"""
-demo = gr.ChatInterface(
-    respond,
-    additional_inputs=[
-        gr.Textbox(value="You are a friendly Chatbot.", label="System message"),
-        gr.Slider(minimum=1, maximum=2048, value=512, step=1, label="Max new tokens"),
-        gr.Slider(minimum=0.1, maximum=4.0, value=0.7, step=0.1, label="Temperature"),
-        gr.Slider(
-            minimum=0.1,
-            maximum=1.0,
-            value=0.95,
-            step=0.05,
-            label="Top-p (nucleus sampling)",
-        ),
-    ],
+# Gradio interface
+def chat(input_text, user_id):
+    return tate_bot(input_text, user_id)
+
+interface = gr.Interface(
+    fn=chat,
+    inputs=["text", "text"],  # User message and unique user ID
+    outputs="text",
+    live=True,
+    description="Andrew Tate AI Mentor: Motivation, Business, and Hustling Advice"
 )
 
-
-if __name__ == "__main__":
-    demo.launch()
+# Launch the app
+interface.launch()
