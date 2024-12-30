@@ -29,7 +29,8 @@ def tate_bot(input_text, user_id):
     response += "\n\nAlso, I remember you told me about this earlier. Stay focused and keep hustling."
 
     # Tokenize input and add to conversation history
-    new_user_input_ids = tokenizer.encode(input_text + tokenizer.eos_token, return_tensors="pt")
+    prompt = f"You are Andrew Tate, the Top G mentor. Speak harshly, motivationally, and directly. The user said: '{input_text}'."
+    new_user_input_ids = tokenizer.encode(prompt + tokenizer.eos_token, return_tensors="pt")
     conversation_history[user_id].append(new_user_input_ids)
 
     # Generate bot response
